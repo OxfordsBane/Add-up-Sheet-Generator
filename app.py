@@ -75,12 +75,13 @@ def adjust_template_rows_and_tables(ws, num_students):
 
     cfs = []
     for sqref in tuple(ws.conditional_formatting):
-        cfs.append((sqref, ws.conditional_formatting[sqref]))
+        # sqref nesnesini doğrudan string'e dönüştürerek kaydediyoruz
+        cfs.append((str(sqref), ws.conditional_formatting[sqref]))
 
-    for old_sqref, rules in cfs:
+    for sqref_str, rules in cfs:
         new_ranges = []
         changed = False
-        for rng in str(old_sqref).split():
+        for rng in sqref_str.split():
             match_range = re.match(r"^([A-Z]+)(\d+):([A-Z]+)(\d+)$", rng)
             match_cell = re.match(r"^([A-Z]+)(\d+)$", rng)
             
@@ -103,7 +104,8 @@ def adjust_template_rows_and_tables(ws, num_students):
         
         if changed:
             new_sqref = " ".join(new_ranges)
-            del ws.conditional_formatting[old_sqref]
+            # Metin (string) formatındaki anahtarı kullanarak eski kuralı siliyoruz
+            del ws.conditional_formatting[sqref_str]
             for rule in rules:
                 ws.conditional_formatting.add(new_sqref, rule)
 
