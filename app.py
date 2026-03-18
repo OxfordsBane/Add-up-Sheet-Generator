@@ -2,6 +2,8 @@ import streamlit as st
 import openpyxl
 from openpyxl.formula.translate import Translator
 from openpyxl.utils.cell import range_boundaries, get_column_letter
+from openpyxl.styles import Border, Side
+import re
 import io
 import zipfile
 
@@ -58,6 +60,49 @@ def adjust_template_rows_and_tables(ws, num_students):
                     target_cell.value = master_cell.value
             elif target_cell.value is None and master_cell.value is not None:
                 target_cell.value = master_cell.value
+
+    thin_side = Side(border_style="thin")
+    thick_side = Side(border_style="medium")
+    
+    for r in range(start_row, last_student_row + 1):
+        cell = ws.cell(row=r, column=5)
+        cell.border = Border(
+            top=thick_side if r == start_row else thin_side,
+            bottom=thick_side if r == last_student_row else thin_side,
+            left=thick_side,
+            right=thick_side
+        )
+
+    cfs = list(ws.conditional_formatting.items())
+    for old_sqref, rules in cfs:
+        new_ranges = []
+        changed = False
+        for rng in str(old_sqref).split():
+            match_range = re.match(r"^([A-Z]+)(\d+):([A-Z]+)(\d+)$", rng)
+            match_cell = re.match(r"^([A-Z]+)(\d+)$", rng)
+            
+            if match_range:
+                scol, srow, ecol, erow = match_range.groups()
+                if int(srow) <= start_row and int(erow) >= start_row:
+                    new_ranges.append(f"{scol}{srow}:{ecol}{last_student_row}")
+                    changed = True
+                else:
+                    new_ranges.append(rng)
+            elif match_cell:
+                col, row = match_cell.groups()
+                if int(row) == start_row:
+                    new_ranges.append(f"{col}{start_row}:{col}{last_student_row}")
+                    changed = True
+                else:
+                    new_ranges.append(rng)
+            else:
+                new_ranges.append(rng)
+        
+        if changed:
+            new_sqref = " ".join(new_ranges)
+            del ws.conditional_formatting[old_sqref]
+            for rule in rules:
+                ws.conditional_formatting.add(new_sqref, rule)
 
 def process_class_template(template_bytes, class_name, students):
     wb = openpyxl.load_workbook(filename=io.BytesIO(template_bytes))
