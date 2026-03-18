@@ -75,14 +75,22 @@ def adjust_template_rows_and_tables(ws, num_students):
 
     cfs = []
     for sqref in list(ws.conditional_formatting):
-        cfs.append((str(sqref), ws.conditional_formatting[sqref]))
+        try:
+            if hasattr(sqref, 'ranges'):
+                sqref_str = " ".join([rng.coord for rng in sqref.ranges])
+            else:
+                sqref_str = str(sqref)
+            
+            sqref_str = sqref_str.replace("<MultiCellRange [", "").replace("]>", "")
+            cfs.append((sqref_str, ws.conditional_formatting[sqref]))
+        except:
+            pass
 
     if hasattr(ws.conditional_formatting, '_cf_rules'):
         ws.conditional_formatting._cf_rules.clear()
 
     for sqref_str, rules in cfs:
         new_ranges = []
-        changed = False
         for rng in sqref_str.split():
             match_range = re.match(r"^([A-Z]+)(\d+):([A-Z]+)(\d+)$", rng)
             match_cell = re.match(r"^([A-Z]+)(\d+)$", rng)
@@ -91,23 +99,24 @@ def adjust_template_rows_and_tables(ws, num_students):
                 scol, srow, ecol, erow = match_range.groups()
                 if int(srow) <= start_row and int(erow) >= start_row:
                     new_ranges.append(f"{scol}{srow}:{ecol}{last_student_row}")
-                    changed = True
                 else:
                     new_ranges.append(rng)
             elif match_cell:
                 col, row = match_cell.groups()
                 if int(row) == start_row:
                     new_ranges.append(f"{col}{start_row}:{col}{last_student_row}")
-                    changed = True
                 else:
                     new_ranges.append(rng)
             else:
                 new_ranges.append(rng)
         
-        new_sqref = " ".join(new_ranges) if changed else sqref_str
+        new_sqref = " ".join(new_ranges)
         
         for rule in rules:
-            ws.conditional_formatting.add(new_sqref, rule)
+            try:
+                ws.conditional_formatting.add(new_sqref, rule)
+            except:
+                pass
 
 def process_class_template(template_bytes, class_name, students):
     wb = openpyxl.load_workbook(filename=io.BytesIO(template_bytes))
