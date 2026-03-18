@@ -73,7 +73,10 @@ def adjust_template_rows_and_tables(ws, num_students):
             right=thick_side
         )
 
-    cfs = list(ws.conditional_formatting.items())
+    cfs = []
+    for sqref in tuple(ws.conditional_formatting):
+        cfs.append((sqref, ws.conditional_formatting[sqref]))
+
     for old_sqref, rules in cfs:
         new_ranges = []
         changed = False
