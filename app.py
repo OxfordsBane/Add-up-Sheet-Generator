@@ -26,37 +26,38 @@ def get_students_from_sheet(sheet):
 def adjust_template_rows_and_tables(ws, num_students):
     start_row = 3
     current_rows = 30
-    middle_offset = 15
-    action_row_idx = start_row + middle_offset
-    master_row_idx = start_row 
+    
+    action_row_idx = start_row + 15
     
     if num_students > current_rows:
         rows_to_add = num_students - current_rows
         ws.insert_rows(action_row_idx, amount=rows_to_add)
-        
-        for r in range(action_row_idx, action_row_idx + rows_to_add):
-            for col in range(1, ws.max_column + 1):
-                master_cell = ws.cell(row=master_row_idx, column=col)
-                target_cell = ws.cell(row=r, column=col)
-                
-                if master_cell.has_style:
-                    target_cell._style = master_cell._style
-                
-                if master_cell.data_type == 'f' and master_cell.value:
-                    try:
-                        target_cell.value = Translator(master_cell.value, origin=master_cell.coordinate).translate_formula(target_cell.coordinate)
-                    except:
-                        target_cell.value = master_cell.value
-                        
     elif num_students < current_rows:
         rows_to_delete = current_rows - num_students
         ws.delete_rows(action_row_idx, amount=rows_to_delete)
 
-    new_max_row = start_row + num_students - 1
+    last_student_row = start_row + num_students - 1
+
     for table in ws.tables.values():
         ref = table.ref
         min_col, min_row, max_col, max_row = range_boundaries(ref)
-        table.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{new_max_row}"
+        table.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{last_student_row}"
+
+    for r in range(start_row + 1, last_student_row + 1):
+        for col in range(1, ws.max_column + 1):
+            master_cell = ws.cell(row=start_row, column=col)
+            target_cell = ws.cell(row=r, column=col)
+            
+            if master_cell.has_style:
+                target_cell._style = master_cell._style
+            
+            if master_cell.data_type == 'f' and master_cell.value:
+                try:
+                    target_cell.value = Translator(master_cell.value, origin=master_cell.coordinate).translate_formula(target_cell.coordinate)
+                except:
+                    target_cell.value = master_cell.value
+            elif target_cell.value is None and master_cell.value is not None:
+                target_cell.value = master_cell.value
 
 def process_class_template(template_bytes, class_name, students):
     wb = openpyxl.load_workbook(filename=io.BytesIO(template_bytes))
