@@ -30,6 +30,7 @@ def adjust_template_rows_and_tables(ws, num_students):
     middle_offset = 15
     action_row_idx = start_row + middle_offset
     source_row_idx = action_row_idx - 1
+    master_row_idx = start_row
     chunk_size = 20
     
     while current_rows < num_students:
@@ -40,6 +41,7 @@ def adjust_template_rows_and_tables(ws, num_students):
             new_row_idx = action_row_idx + i
             for col in range(1, ws.max_column + 1):
                 source_cell = ws.cell(row=source_row_idx, column=col)
+                master_cell = ws.cell(row=master_row_idx, column=col)
                 target_cell = ws.cell(row=new_row_idx, column=col)
                 
                 if source_cell.has_style:
@@ -49,8 +51,8 @@ def adjust_template_rows_and_tables(ws, num_students):
                     target_cell.number_format = copy(source_cell.number_format)
                     target_cell.alignment = copy(source_cell.alignment)
                 
-                if source_cell.data_type == 'f':
-                    target_cell.value = Translator(source_cell.value, origin=source_cell.coordinate).translate_formula(target_cell.coordinate)
+                if master_cell.data_type == 'f' and master_cell.value:
+                    target_cell.value = Translator(master_cell.value, origin=master_cell.coordinate).translate_formula(target_cell.coordinate)
                     
         current_rows += rows_to_add
 
