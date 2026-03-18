@@ -3,6 +3,7 @@ import openpyxl
 from openpyxl.formula.translate import Translator
 from openpyxl.utils.cell import range_boundaries, get_column_letter
 from openpyxl.styles import Border, Side
+from openpyxl.worksheet.cell_range import MultiCellRange
 import re
 import io
 import zipfile
@@ -43,7 +44,12 @@ def adjust_template_rows_and_tables(ws, num_students):
     for table in ws.tables.values():
         ref = table.ref
         min_col, min_row, max_col, max_row = range_boundaries(ref)
-        table.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{last_student_row}"
+        original_data_end = start_row + current_rows - 1
+        offset = max_row - original_data_end
+        if offset < 0:
+            offset = 0
+        new_table_max_row = last_student_row + offset
+        table.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{new_table_max_row}"
 
     for r in range(start_row + 1, last_student_row + 1):
         for col in range(1, ws.max_column + 1):
@@ -73,50 +79,44 @@ def adjust_template_rows_and_tables(ws, num_students):
             right=thick_side
         )
 
-    cfs = []
-    for sqref in list(ws.conditional_formatting):
-        try:
+    if hasattr(ws.conditional_formatting, '_cf_rules'):
+        new_cf_rules = {}
+        for sqref, rules in ws.conditional_formatting._cf_rules.items():
             if hasattr(sqref, 'ranges'):
                 sqref_str = " ".join([rng.coord for rng in sqref.ranges])
             else:
                 sqref_str = str(sqref)
             
             sqref_str = sqref_str.replace("<MultiCellRange [", "").replace("]>", "")
-            cfs.append((sqref_str, ws.conditional_formatting[sqref]))
-        except:
-            pass
-
-    if hasattr(ws.conditional_formatting, '_cf_rules'):
-        ws.conditional_formatting._cf_rules.clear()
-
-    for sqref_str, rules in cfs:
-        new_ranges = []
-        for rng in sqref_str.split():
-            match_range = re.match(r"^([A-Z]+)(\d+):([A-Z]+)(\d+)$", rng)
-            match_cell = re.match(r"^([A-Z]+)(\d+)$", rng)
             
-            if match_range:
-                scol, srow, ecol, erow = match_range.groups()
-                if int(srow) <= start_row and int(erow) >= start_row:
-                    new_ranges.append(f"{scol}{srow}:{ecol}{last_student_row}")
+            new_ranges = []
+            for rng in sqref_str.split():
+                match_range = re.match(r"^([A-Z]+)(\d+):([A-Z]+)(\d+)$", rng)
+                match_cell = re.match(r"^([A-Z]+)(\d+)$", rng)
+                
+                if match_range:
+                    scol, srow, ecol, erow = match_range.groups()
+                    if int(srow) <= start_row and int(erow) >= start_row:
+                        new_ranges.append(f"{scol}{start_row}:{ecol}{last_student_row}")
+                    else:
+                        new_ranges.append(rng)
+                elif match_cell:
+                    col, row = match_cell.groups()
+                    if int(row) == start_row:
+                        new_ranges.append(f"{col}{start_row}:{col}{last_student_row}")
+                    else:
+                        new_ranges.append(rng)
                 else:
                     new_ranges.append(rng)
-            elif match_cell:
-                col, row = match_cell.groups()
-                if int(row) == start_row:
-                    new_ranges.append(f"{col}{start_row}:{col}{last_student_row}")
-                else:
-                    new_ranges.append(rng)
-            else:
-                new_ranges.append(rng)
-        
-        new_sqref = " ".join(new_ranges)
-        
-        for rule in rules:
+            
+            new_sqref_str = " ".join(new_ranges)
             try:
-                ws.conditional_formatting.add(new_sqref, rule)
+                new_sqref = MultiCellRange(new_sqref_str)
+                new_cf_rules[new_sqref] = rules
             except:
-                pass
+                new_cf_rules[sqref] = rules
+                
+        ws.conditional_formatting._cf_rules = new_cf_rules
 
 def process_class_template(template_bytes, class_name, students):
     wb = openpyxl.load_workbook(filename=io.BytesIO(template_bytes))
