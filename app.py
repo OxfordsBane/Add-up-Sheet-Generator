@@ -28,17 +28,19 @@ def get_students_from_sheet(sheet):
 def adjust_template_rows_and_tables(ws, num_students):
     start_row = 3
     default_rows = 30
-    last_template_row = start_row + default_rows - 1
+    middle_offset = 15
+    action_row_idx = start_row + middle_offset
     
     if num_students > default_rows:
         rows_to_add = num_students - default_rows
-        ws.insert_rows(last_template_row + 1, amount=rows_to_add)
+        ws.insert_rows(action_row_idx, amount=rows_to_add)
         
         for i in range(rows_to_add):
-            current_row = last_template_row + 1 + i
+            current_row = action_row_idx + i
+            source_row = action_row_idx - 1
             
             for col in range(1, ws.max_column + 1):
-                source_cell = ws.cell(row=last_template_row, column=col)
+                source_cell = ws.cell(row=source_row, column=col)
                 target_cell = ws.cell(row=current_row, column=col)
                 
                 if source_cell.has_style:
@@ -53,7 +55,7 @@ def adjust_template_rows_and_tables(ws, num_students):
 
     elif num_students < default_rows:
         rows_to_delete = default_rows - num_students
-        ws.delete_rows(start_row + num_students, amount=rows_to_delete)
+        ws.delete_rows(action_row_idx, amount=rows_to_delete)
 
     new_max_row = start_row + num_students - 1
     for table in ws.tables.values():
