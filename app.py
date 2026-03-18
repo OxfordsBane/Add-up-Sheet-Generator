@@ -1,6 +1,8 @@
 import streamlit as st
 import openpyxl
+from openpyxl.formula.translate import Translator
 from openpyxl.utils.cell import range_boundaries, get_column_letter
+from copy import copy
 import io
 import zipfile
 
@@ -27,11 +29,29 @@ def adjust_template_rows_and_tables(ws, num_students):
     current_rows = 30
     middle_offset = 15
     action_row_idx = start_row + middle_offset
+    source_row_idx = action_row_idx - 1
     chunk_size = 20
     
     while current_rows < num_students:
         rows_to_add = min(chunk_size, num_students - current_rows)
         ws.insert_rows(action_row_idx, amount=rows_to_add)
+        
+        for i in range(rows_to_add):
+            new_row_idx = action_row_idx + i
+            for col in range(1, ws.max_column + 1):
+                source_cell = ws.cell(row=source_row_idx, column=col)
+                target_cell = ws.cell(row=new_row_idx, column=col)
+                
+                if source_cell.has_style:
+                    target_cell.font = copy(source_cell.font)
+                    target_cell.border = copy(source_cell.border)
+                    target_cell.fill = copy(source_cell.fill)
+                    target_cell.number_format = copy(source_cell.number_format)
+                    target_cell.alignment = copy(source_cell.alignment)
+                
+                if source_cell.data_type == 'f':
+                    target_cell.value = Translator(source_cell.value, origin=source_cell.coordinate).translate_formula(target_cell.coordinate)
+                    
         current_rows += rows_to_add
 
     while current_rows > num_students:
