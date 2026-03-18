@@ -74,11 +74,11 @@ def adjust_template_rows_and_tables(ws, num_students):
         )
 
     cfs = []
-    for sqref in tuple(ws.conditional_formatting):
-        # sqref nesnesini doğrudan string'e dönüştürerek kaydediyoruz
-        cfs.append((str(sqref), ws.conditional_formatting[sqref]))
+    # Orijinal nesneyi (orig_sqref) kaybetmemek için hafızaya alıyoruz
+    for orig_sqref in tuple(ws.conditional_formatting):
+        cfs.append((orig_sqref, str(orig_sqref), ws.conditional_formatting[orig_sqref]))
 
-    for sqref_str, rules in cfs:
+    for orig_sqref, sqref_str, rules in cfs:
         new_ranges = []
         changed = False
         for rng in sqref_str.split():
@@ -104,8 +104,8 @@ def adjust_template_rows_and_tables(ws, num_students):
         
         if changed:
             new_sqref = " ".join(new_ranges)
-            # Metin (string) formatındaki anahtarı kullanarak eski kuralı siliyoruz
-            del ws.conditional_formatting[sqref_str]
+            # Metin yerine openpyxl'in beklediği orijinal nesneyi (orig_sqref) silme komutuna iletiyoruz
+            del ws.conditional_formatting[orig_sqref]
             for rule in rules:
                 ws.conditional_formatting.add(new_sqref, rule)
 
