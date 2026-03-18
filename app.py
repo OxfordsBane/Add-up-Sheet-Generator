@@ -28,24 +28,25 @@ def get_students_from_sheet(sheet):
 def adjust_template_rows_and_tables(ws, num_students):
     start_row = 3
     default_rows = 30
+    last_template_row = start_row + default_rows - 1
     
     if num_students > default_rows:
         rows_to_add = num_students - default_rows
-        ws.insert_rows(start_row + default_rows, amount=rows_to_add)
+        ws.insert_rows(last_template_row + 1, amount=rows_to_add)
         
         for i in range(rows_to_add):
-            current_row = start_row + default_rows + i
-            source_row = current_row - 1
+            current_row = last_template_row + 1 + i
             
             for col in range(1, ws.max_column + 1):
-                source_cell = ws.cell(row=source_row, column=col)
+                source_cell = ws.cell(row=last_template_row, column=col)
                 target_cell = ws.cell(row=current_row, column=col)
                 
-                target_cell.font = copy(source_cell.font)
-                target_cell.border = copy(source_cell.border)
-                target_cell.fill = copy(source_cell.fill)
-                target_cell.number_format = copy(source_cell.number_format)
-                target_cell.alignment = copy(source_cell.alignment)
+                if source_cell.has_style:
+                    target_cell.font = copy(source_cell.font)
+                    target_cell.border = copy(source_cell.border)
+                    target_cell.fill = copy(source_cell.fill)
+                    target_cell.number_format = copy(source_cell.number_format)
+                    target_cell.alignment = copy(source_cell.alignment)
                 
                 if source_cell.data_type == 'f':
                     target_cell.value = Translator(source_cell.value, origin=source_cell.coordinate).translate_formula(target_cell.coordinate)
