@@ -1,6 +1,7 @@
 import streamlit as st
 import openpyxl
 from openpyxl.formula.translate import Translator
+from openpyxl.utils.cell import range_boundaries, get_column_letter
 from copy import copy
 import pandas as pd
 import io
@@ -24,7 +25,7 @@ def get_students_from_sheet(sheet):
             })
     return students
 
-def adjust_template_rows(ws, num_students):
+def adjust_template_rows_and_tables(ws, num_students):
     start_row = 3
     default_rows = 30
     
@@ -53,25 +54,30 @@ def adjust_template_rows(ws, num_students):
         rows_to_delete = default_rows - num_students
         ws.delete_rows(start_row + num_students, amount=rows_to_delete)
 
+    new_max_row = start_row + num_students - 1
+    for table in ws.tables.values():
+        ref = table.ref
+        min_col, min_row, max_col, max_row = range_boundaries(ref)
+        table.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{new_max_row}"
+
 def process_class_template(template_bytes, class_name, students):
     wb = openpyxl.load_workbook(filename=io.BytesIO(template_bytes))
     
-    if "MidTerm" in wb.sheetnames:
-        ws = wb["MidTerm"]
-    else:
-        ws = wb.active
-
-    if ws["A1"].value:
-        ws["A1"] = f"{class_name} {ws['A1'].value.split(' ', 1)[-1] if ' ' in ws['A1'].value else ''}"
-    
-    adjust_template_rows(ws, len(students))
-    
-    start_row = 3
-    for i, student in enumerate(students):
-        ws.cell(row=start_row + i, column=1, value=student["index"])
-        ws.cell(row=start_row + i, column=2, value=student["number"])
-        ws.cell(row=start_row + i, column=3, value=student["name"])
-        ws.cell(row=start_row + i, column=4, value=student["surname"])
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        
+        if ws["A1"].value:
+            ws["A1"] = f"{class_name} {str(ws['A1'].value).split(' ', 1)[-1] if ' ' in str(ws['A1'].value) else ''}"
+        
+        adjust_template_rows_and_tables(ws, len(students))
+        
+        if sheet_name == "MidTerm":
+            start_row = 3
+            for i, student in enumerate(students):
+                ws.cell(row=start_row + i, column=1, value=student["index"])
+                ws.cell(row=start_row + i, column=2, value=student["number"])
+                ws.cell(row=start_row + i, column=3, value=student["name"])
+                ws.cell(row=start_row + i, column=4, value=student["surname"])
         
     output = io.BytesIO()
     wb.save(output)
