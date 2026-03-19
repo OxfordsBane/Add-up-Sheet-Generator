@@ -28,17 +28,24 @@ def get_students_from_sheet(sheet):
 
 def adjust_template_rows_and_tables(ws, num_students):
     start_row = 3
-    current_rows = 30
+    current_rows = 30 # Varsayılan güvenlik değeri
     
-    action_row_idx = start_row + 15
+    # 1. Şablonun orijinal tablosundaki MEVCUT satır sayısını dinamik olarak bul
+    for table in ws.tables.values():
+        min_col, min_row, max_col, max_row = range_boundaries(table.ref)
+        if min_row <= start_row <= max_row:
+            current_rows = max_row - start_row + 1
+            break
+            
+    # İşlemin yapılacağı orta noktayı dinamik belirle
+    action_row_idx = start_row + (current_rows // 2)
+    if action_row_idx <= start_row:
+        action_row_idx = start_row + 1
     
-    # Satır ekleme veya silme işlemleri
     if num_students > current_rows:
         rows_to_add = num_students - current_rows
         ws.insert_rows(action_row_idx, amount=rows_to_add)
         
-        # Sadece yeni açılan boş satırlara, orta kısımdaki normal bir satırın stilini kopyala
-        # Diğer satırların (özellikle en üst ve en alt) orijinal stiline dokunma
         for r in range(action_row_idx, action_row_idx + rows_to_add):
             for col in range(1, ws.max_column + 1):
                 source_cell = ws.cell(row=action_row_idx - 1, column=col)
@@ -52,7 +59,6 @@ def adjust_template_rows_and_tables(ws, num_students):
 
     last_student_row = start_row + num_students - 1
 
-    # Excel tablo nesnelerinin sınırlarını güncelle
     for table in ws.tables.values():
         ref = table.ref
         min_col, min_row, max_col, max_row = range_boundaries(ref)
@@ -63,27 +69,23 @@ def adjust_template_rows_and_tables(ws, num_students):
         new_table_max_row = last_student_row + offset
         table.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{new_table_max_row}"
 
-    # Sadece formülleri ve varsayılan 0 değerlerini satırlara uyarla (Stilleri ezme!)
     for r in range(start_row + 1, last_student_row + 1):
         for col in range(1, ws.max_column + 1):
             master_cell = ws.cell(row=start_row, column=col)
             target_cell = ws.cell(row=r, column=col)
             
+            # SADECE formülleri taşı, statik rakamları (4, 5 vb.) kopyalama
             if master_cell.data_type == 'f' and master_cell.value:
                 try:
                     target_cell.value = Translator(master_cell.value, origin=master_cell.coordinate).translate_formula(target_cell.coordinate)
                 except:
                     target_cell.value = master_cell.value
-            elif target_cell.value is None and master_cell.value is not None:
-                target_cell.value = master_cell.value
 
-    # --- E SÜTUNU (5. SÜTUN) İÇİN ÖZEL KENARLIK KURALI ---
-    # İç kısımlar ince (All Borders), dış çerçeve kalın (Thick Outside Borders)
     thin_side = Side(border_style="thin")
-    thick_side = Side(border_style="medium") # Excel'deki kalın çerçeve standardı
+    thick_side = Side(border_style="medium")
     
     for r in range(start_row, last_student_row + 1):
-        cell = ws.cell(row=r, column=5) # 5 = E Sütunu
+        cell = ws.cell(row=r, column=5)
         cell.border = Border(
             top=thick_side if r == start_row else thin_side,
             bottom=thick_side if r == last_student_row else thin_side,
@@ -91,7 +93,6 @@ def adjust_template_rows_and_tables(ws, num_students):
             right=thick_side
         )
 
-    # Koşullu biçimlendirme kurallarının yeni satırlara uzatılması
     if hasattr(ws.conditional_formatting, '_cf_rules'):
         new_cf_rules = {}
         for sqref, rules in ws.conditional_formatting._cf_rules.items():
