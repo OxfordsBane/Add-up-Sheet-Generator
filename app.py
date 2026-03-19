@@ -3,8 +3,7 @@ import openpyxl
 from openpyxl.formula.translate import Translator
 from openpyxl.utils.cell import range_boundaries, get_column_letter
 from openpyxl.styles import Border, Side
-from openpyxl.worksheet.cell_range import MultiCellRange
-import re
+from openpyxl.formatting.rule import Rule, IconSet, FormatObject
 import io
 import zipfile
 
@@ -74,13 +73,14 @@ def adjust_template_rows_and_tables(ws, num_students):
             master_cell = ws.cell(row=start_row, column=col)
             target_cell = ws.cell(row=r, column=col)
             
-            # SADECE formülleri taşı, statik rakamları (4, 5 vb.) kopyalama
+            # SADECE formülleri taşı, statik rakamları kopyalama
             if master_cell.data_type == 'f' and master_cell.value:
                 try:
                     target_cell.value = Translator(master_cell.value, origin=master_cell.coordinate).translate_formula(target_cell.coordinate)
                 except:
                     target_cell.value = master_cell.value
 
+    # E Sütunu (5. Sütun) Çerçeve Formatlaması
     thin_side = Side(border_style="thin")
     thick_side = Side(border_style="medium")
     
@@ -93,44 +93,23 @@ def adjust_template_rows_and_tables(ws, num_students):
             right=thick_side
         )
 
+    # --- YENİ KOŞULLU BİÇİMLENDİRME: 5'Lİ OK SİSTEMİ (Sıfırdan Enjekte) ---
+    # 1. Eski sorunlu kuralları tamamen temizle
     if hasattr(ws.conditional_formatting, '_cf_rules'):
-        new_cf_rules = {}
-        for sqref, rules in ws.conditional_formatting._cf_rules.items():
-            if hasattr(sqref, 'ranges'):
-                sqref_str = " ".join([rng.coord for rng in sqref.ranges])
-            else:
-                sqref_str = str(sqref)
-            
-            sqref_str = sqref_str.replace("<MultiCellRange [", "").replace("]>", "")
-            
-            new_ranges = []
-            for rng in sqref_str.split():
-                match_range = re.match(r"^([A-Z]+)(\d+):([A-Z]+)(\d+)$", rng)
-                match_cell = re.match(r"^([A-Z]+)(\d+)$", rng)
-                
-                if match_range:
-                    scol, srow, ecol, erow = match_range.groups()
-                    if int(srow) <= start_row and int(erow) >= start_row:
-                        new_ranges.append(f"{scol}{start_row}:{ecol}{last_student_row}")
-                    else:
-                        new_ranges.append(rng)
-                elif match_cell:
-                    col, row = match_cell.groups()
-                    if int(row) == start_row:
-                        new_ranges.append(f"{col}{start_row}:{col}{last_student_row}")
-                    else:
-                        new_ranges.append(rng)
-                else:
-                    new_ranges.append(rng)
-            
-            new_sqref_str = " ".join(new_ranges)
-            try:
-                new_sqref = MultiCellRange(new_sqref_str)
-                new_cf_rules[new_sqref] = rules
-            except:
-                new_cf_rules[sqref] = rules
-                
-        ws.conditional_formatting._cf_rules = new_cf_rules
+        ws.conditional_formatting._cf_rules.clear()
+        
+    # 2. Resimdeki barajlara göre (32, 24, 16, 8, 0) ok kuralını oluştur
+    cfvo1 = FormatObject(type='num', val=0)   # Kırmızı Aşağı Ok (< 8)
+    cfvo2 = FormatObject(type='num', val=8)   # Turuncu Sağ-Aşağı Ok (>= 8)
+    cfvo3 = FormatObject(type='num', val=16)  # Sarı Sağ Ok (>= 16)
+    cfvo4 = FormatObject(type='num', val=24)  # Sarı-Yeşil Sağ-Yukarı Ok (>= 24)
+    cfvo5 = FormatObject(type='num', val=32)  # Yeşil Yukarı Ok (>= 32)
+    
+    icon_set = IconSet(iconSet='5Arrows', cfvo=[cfvo1, cfvo2, cfvo3, cfvo4, cfvo5])
+    rule = Rule(type='iconSet', iconSet=icon_set)
+    
+    # 3. Kuralı sadece hedeflenen hücrelere uygula (E3'ten son öğrenciye kadar)
+    ws.conditional_formatting.add(f"E3:E{last_student_row}", rule)
 
 def process_class_template(template_bytes, class_name, students):
     wb = openpyxl.load_workbook(filename=io.BytesIO(template_bytes))
